@@ -14,15 +14,27 @@ def get_next_runtime(cron_expression, base_time=None):
 
 
 async def run_scheduled_tasks(cron_expression):
+    if isinstance(cron_expression, str):
+        cron_expression = [cron_expression]
     logger.info(f"{program}运行中")
-    next_run = get_next_runtime(cron_expression)
-    logger.info(f"下次更新任务时间为{next_run}")
+    next_run = [get_next_runtime(ce) for ce in cron_expression]
+    next_run_time = next((x for x in sorted(set(next_run)) if x > datetime.now()), None)
+    logger.info(f"下次更新任务时间为{next_run_time }")
     while True:
         now = datetime.now()
-        if now >= next_run:
-            await main(mode="cron")
-            next_run = get_next_runtime(cron_expression, now + timedelta(seconds=1))
-            logger.info(f"下次更新任务时间为{next_run}")
+        for i in range(len(next_run)):
+            if now >= next_run[i]:
+                await main(mode="cron")
+                next_run = [
+                    get_next_runtime(ce, now + timedelta(seconds=1))
+                    for ce in cron_expression
+                ]
+                next_run_time = next((x for x in sorted(set(next_run)) if x > datetime.now()), None)
+                logger.info(f"下次更新任务时间为{next_run_time}")
+        # if now >= next_run :
+        #     await main(mode="cron")
+        #     next_run = get_next_runtime(cron_expression, now + timedelta(seconds=1))
+        #     logger.info(f"下次更新任务时间为{next_run}")
         await asyncio.sleep(1)
 
 
