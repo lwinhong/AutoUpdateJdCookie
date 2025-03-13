@@ -46,7 +46,8 @@ from utils.tools import (
     validate_proxy_config,
     is_valid_verification_code,
     filter_cks,
-    extract_pt_pin
+    extract_pt_pin,
+    desensitize_account
 )
 
 """
@@ -57,6 +58,11 @@ logger.add(
     level="DEBUG"
 )
 
+try:
+    # 账号是否脱敏的开关
+    from config import enable_desensitize
+except ImportError:
+    enable_desensitize = False
 
 async def download_image(url, filepath):
     async with aiohttp.ClientSession() as session:
@@ -588,27 +594,31 @@ async def get_jd_pt_key(playwright: Playwright, user, mode) -> Union[str, None]:
             await asyncio.sleep(random.random())
             await page.locator('.btn.J_ping.active').click()
 
-            # 自动识别移动滑块验证码
-            await asyncio.sleep(1)
-            await auto_move_slide_v2(page, retry_times=5)
+            if user_datas[user].get("auto_switch", True):
+                # 自动识别移动滑块验证码
+                await asyncio.sleep(1)
+                await auto_move_slide_v2(page, retry_times=5)
 
-            # 自动验证形状验证码
-            await asyncio.sleep(1)
-            await auto_shape(page, retry_times=30)
+                # 自动验证形状验证码
+                await asyncio.sleep(1)
+                await auto_shape(page, retry_times=30)
 
-            # 进行短信验证识别
-            await asyncio.sleep(1)
-            if await page.locator('text="手机短信验证"').count() != 0:
-                logger.info("开始短信验证码识别环节")
-                await sms_recognition(page, user, mode)
+                # 进行短信验证识别
+                await asyncio.sleep(1)
+                if await page.locator('text="手机短信验证"').count() != 0:
+                    logger.info("开始短信验证码识别环节")
+                    await sms_recognition(page, user, mode)
 
-            # 进行手机语音验证识别
-            if await page.locator('div#header .text-header:has-text("手机语音验证")').count() > 0:
-                logger.info("检测到手机语音验证页面,开始识别")
-                await voice_verification(page, user, mode)
+                # 进行手机语音验证识别
+                if await page.locator('div#header .text-header:has-text("手机语音验证")').count() > 0:
+                    logger.info("检测到手机语音验证页面,开始识别")
+                    await voice_verification(page, user, mode)
 
-            # 检查警告,如账号存在风险或账密不正确等
-            await check_notice(page)
+                # 检查警告,如账号存在风险或账密不正确等
+                await check_notice(page)
+
+            else:
+                logger.info("自动过验证码开关已关, 请手动操作")
 
         # 等待验证码通过
         logger.info("等待获取cookie...")
@@ -710,7 +720,7 @@ async def main(mode: str = None):
                 ck_ids_datas = bytes(json.dumps(invalid_cks_id_list), 'utf-8')
                 await qlapi.envs_disable(data=ck_ids_datas)
                 # 更新jd_ck_env_datas
-                jd_ck_env_datas = [{**x, 'status': 1} for x in invalid_cks_id_list if x.get('id') in ck_ids_datas or x.get('_id') in ck_ids_datas]
+                jd_ck_env_datas = [{**x, 'status': 1} if x.get('id') in invalid_cks_id_list or x.get('_id') in invalid_cks_id_list else x for x in jd_ck_env_datas]
             logger.info("检测CK任务完成")
         except Exception as e:
             traceback.print_exc()
@@ -737,11 +747,11 @@ async def main(mode: str = None):
         # 登录JD获取pt_key
         async with async_playwright() as playwright:
             for user in user_dict:
-                logger.info(f"开始更新{user}")
+                logger.info(f"开始更新{desensitize_account(user, enable_desensitize)}")
                 pt_key = await get_jd_pt_key(playwright, user, mode)
                 if pt_key is None:
                     logger.error(f"获取pt_key失败")
-                    await send_msg(send_api, send_type=1, msg=f"{user} 更新失败")
+                    await send_msg(send_api, send_type=1, msg=f"{desensitize_account(user, enable_desensitize)} 更新失败")
                     continue
 
                 req_data = user_dict[user]
@@ -750,20 +760,20 @@ async def main(mode: str = None):
                 data = json.dumps(req_data)
                 response = await qlapi.set_envs(data=data)
                 if response['code'] == 200:
-                    logger.info(f"{user}更新成功")
+                    logger.info(f"{desensitize_account(user, enable_desensitize)}更新成功")
                 else:
-                    logger.error(f"{user}更新失败, response: {response}")
-                    await send_msg(send_api, send_type=1, msg=f"{user} 更新失败")
+                    logger.error(f"{desensitize_account(user, enable_desensitize)}更新失败, response: {response}")
+                    await send_msg(send_api, send_type=1, msg=f"{desensitize_account(user, enable_desensitize)} 更新失败")
                     continue
 
                 req_id = f"[{req_data['id']}]" if 'id' in req_data.keys() else f'[\"{req_data["_id"]}\"]'
                 data = bytes(req_id, 'utf-8')
                 response = await qlapi.envs_enable(data=data)
                 if response['code'] == 200:
-                    logger.info(f"{user}启用成功")
-                    await send_msg(send_api, send_type=0, msg=f"{user} 更新成功")
+                    logger.info(f"{desensitize_account(user, enable_desensitize)}启用成功")
+                    await send_msg(send_api, send_type=0, msg=f"{desensitize_account(user, enable_desensitize)} 更新成功")
                 else:
-                    logger.error(f"{user}启用失败, response: {response}")
+                    logger.error(f"{desensitize_account(user, enable_desensitize)}启用失败, response: {response}")
 
     except Exception as e:
         traceback.print_exc()
