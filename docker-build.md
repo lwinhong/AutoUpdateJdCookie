@@ -7,4 +7,13 @@ docker build -t kk/autojd:latest .
 
 ```bash
 docker run --name=kkautojd --restart=always kk/autojd:latest 
+
+
+```
+
+单次运行
+
+```bash
+docker run --name=kkautojd  kk/autojd:latest python main.py
+
 ```
