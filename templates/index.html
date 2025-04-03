@@ -1,0 +1,32 @@
+<html>
+
+<head>
+    <title>Hello World</title>
+</head>
+
+<body>
+    <button id="login">重新登陆</button>
+    <p id="result">1</p>
+    <script>
+
+
+        document.getElementById('login').addEventListener('click', function () {
+
+            let resultEl = document.getElementById('result')
+            resultEl.innerHTML = '正在登陆...'
+            fetch('/auto')
+                .then(res => {
+                    res.text().then(text => {
+                        resultEl.innerHTML = text;
+                    })
+                })
+                .catch(err => {
+                    console.log(err);
+                    resultEl.innerHTML = err.message;
+                })
+
+        });
+    </script>
+</body>
+
+</html>

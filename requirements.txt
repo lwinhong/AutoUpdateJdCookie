@@ -4,3 +4,4 @@ playwright
 loguru
 croniter
 inputimeout
+FastAPI
