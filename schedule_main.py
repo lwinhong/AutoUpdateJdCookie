@@ -51,9 +51,7 @@ def run_flask_main():
             return render_template('index.html')
         @app.route('/auto')
         def auto_jd():
-         
-        #    asyncio.run(main(mode="cron"))
-   
+           asyncio.run(main(mode="cron"))
            return '已运行自动脚本'
 
         app.run(host='0.0.0.0', port=4567)
