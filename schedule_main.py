@@ -1,6 +1,7 @@
 import asyncio
-import threading
-from flask import Flask,render_template
+import threading,time
+from flask import Flask,render_template, Response
+
 from datetime import datetime, timedelta
 from croniter import croniter
 from utils.consts import program
@@ -49,10 +50,25 @@ def run_flask_main():
         @app.route('/')
         def index():
             return render_template('index.html')
-        @app.route('/auto')
+        
+        @app.route('/auto', methods=['GET'])
         def auto_jd():
-           asyncio.run(main(mode="cron"))
-           return '已运行自动脚本'
+           # 使用ssevent发送消息
+
+            def run_generator():
+            
+                # asyncio.run(main(mode="cron"))
+                # 模拟实时数据
+                for i in range(10):
+                    yield f"data: {i}\n\n"
+                    # 模拟延迟
+                    
+                    time.sleep(1)
+                yield "data: done\n\n"
+
+           
+            return Response(run_generator(), mimetype='text/event-stream')
+           
 
         app.run(host='0.0.0.0', port=4567)
     

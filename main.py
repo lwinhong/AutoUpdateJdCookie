@@ -698,10 +698,13 @@ async def get_ql_api(ql_data):
     return qlapi
 
 
-async def main(mode: str = None):
+async def main(mode: str = None, progressCall = None):
     """
     :param mode 运行模式, 当mode = cron时，sms_func为 manual_input时，将自动传成no
     """
+    def callback(data):
+        if not progressCall:
+            progressCall(data)
     try:
         qlapi = await get_ql_api(qinglong_data)
         send_api = SendApi("ql")
@@ -709,8 +712,10 @@ async def main(mode: str = None):
         response = await qlapi.get_envs()
         if response['code'] == 200:
             logger.info("获取环境变量成功")
+            callback("获取环境变量成功")
         else:
             logger.error(f"获取环境变量失败， response: {response}")
+            callback(f"获取环境变量失败， response: {response}")
             raise Exception(f"获取环境变量失败， response: {response}")
 
         env_data = response['data']
@@ -721,6 +726,7 @@ async def main(mode: str = None):
 
         try:
             logger.info("检测CK任务开始")
+            callback("检测CK任务开始")
             # 先获取启用中的env_data
             up_jd_ck_list = filter_cks(jd_ck_env_datas, status=0, name='JD_COOKIE')
             # 这一步会去检测这些JD_COOKIE
@@ -732,9 +738,11 @@ async def main(mode: str = None):
                 # 更新jd_ck_env_datas
                 jd_ck_env_datas = [{**x, 'status': 1} if x.get('id') in invalid_cks_id_list or x.get('_id') in invalid_cks_id_list else x for x in jd_ck_env_datas]
             logger.info("检测CK任务完成")
+            callback("检测CK任务完成")
         except Exception as e:
             traceback.print_exc()
             logger.error(f"检测CK任务失败, 跳过检测, 报错原因为{e}")
+            callback(f"检测CK任务失败, 跳过检测, 报错原因为{e}")
 
         # 获取需强制更新pt_pin
         force_update_pt_pins = [user_datas[key]["pt_pin"] for key in user_datas if user_datas[key].get("force_update") is True]
@@ -743,6 +751,7 @@ async def main(mode: str = None):
 
         if not forbidden_users:
             logger.info("所有COOKIE环境变量正常，无需更新")
+            callback("所有COOKIE环境变量正常，无需更新")
             return
 
         # 获取需要的字段
@@ -752,27 +761,33 @@ async def main(mode: str = None):
         user_dict = get_forbidden_users_dict(filter_users_list, user_datas)
         if not user_dict:
             logger.info("失效的CK信息未配置在user_datas内，无需更新")
+            callback("失效的CK信息未配置在user_datas内，无需更新")
             return
 
         # 登录JD获取pt_key
         async with async_playwright() as playwright:
             for user in user_dict:
                 logger.info(f"开始更新{desensitize_account(user, enable_desensitize)}")
+                callback(f"开始更新{desensitize_account(user, enable_desensitize)}")
                 pt_key = await get_jd_pt_key(playwright, user, mode)
                 if pt_key is None:
                     logger.error(f"获取pt_key失败")
+                    callback(f"获取pt_key失败")
                     await send_msg(send_api, send_type=1, msg=f"{desensitize_account(user, enable_desensitize)} 更新失败")
                     continue
 
                 req_data = user_dict[user]
                 req_data["value"] = f"pt_key={pt_key};pt_pin={user_datas[user]['pt_pin']};"
                 logger.info(f"更新内容为{req_data}")
+                callback(f"更新内容为{req_data}")
                 data = json.dumps(req_data)
                 response = await qlapi.set_envs(data=data)
                 if response['code'] == 200:
                     logger.info(f"{desensitize_account(user, enable_desensitize)}更新成功")
+                    callback(f"{desensitize_account(user, enable_desensitize)}更新成功")
                 else:
                     logger.error(f"{desensitize_account(user, enable_desensitize)}更新失败, response: {response}")
+                    callback(f"{desensitize_account(user, enable_desensitize)}更新失败, response: {response}")
                     await send_msg(send_api, send_type=1, msg=f"{desensitize_account(user, enable_desensitize)} 更新失败")
                     continue
 
@@ -781,12 +796,15 @@ async def main(mode: str = None):
                 response = await qlapi.envs_enable(data=data)
                 if response['code'] == 200:
                     logger.info(f"{desensitize_account(user, enable_desensitize)}启用成功")
+                    callback(f"{desensitize_account(user, enable_desensitize)}启用成功")
                     await send_msg(send_api, send_type=0, msg=f"{desensitize_account(user, enable_desensitize)} 更新成功")
                 else:
+                    callback(f"{desensitize_account(user, enable_desensitize)}启用失败, response: {response}")
                     logger.error(f"{desensitize_account(user, enable_desensitize)}启用失败, response: {response}")
 
     except Exception as e:
         traceback.print_exc()
+        callback(str(e))
 
 
 def parse_args():

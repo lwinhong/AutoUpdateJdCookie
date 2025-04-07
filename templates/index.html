@@ -14,16 +14,31 @@
 
             let resultEl = document.getElementById('result')
             resultEl.innerHTML = '正在登陆...'
-            fetch('/auto')
-                .then(res => {
-                    res.text().then(text => {
-                        resultEl.innerHTML = text;
-                    })
-                })
-                .catch(err => {
-                    console.log(err);
-                    resultEl.innerHTML = err.message;
-                })
+
+            //使用EventSource访问服务器端事件
+            let source = new EventSource('/auto')
+            source.onmessage = function (event) {
+                resultEl.innerHTML += "<p>" + event.data + "</p>"
+                if(event.data==='done'){
+                    source.close()
+                }
+            };
+ 
+            
+            source.onerror = function (event) {
+                resultEl.innerHTML += '<p>EventSource failed</p>' ;
+                source.close()
+            };
+            // fetch('/auto')
+            //     .then(res => {
+            //         res.text().then(text => {
+            //             resultEl.innerHTML = text;
+            //         })
+            //     })
+            //     .catch(err => {
+            //         console.log(err);
+            //         resultEl.innerHTML = err.message;
+            //     })
 
         });
     </script>
