@@ -698,13 +698,14 @@ async def get_ql_api(ql_data):
     return qlapi
 
 
-async def main(mode: str = None, progressCall = None):
+async def main(mode: str = None, progress_call = None):
     """
     :param mode 运行模式, 当mode = cron时，sms_func为 manual_input时，将自动传成no
     """
     def callback(data):
-        if not progressCall:
-            progressCall(data)
+        if progress_call is not  None:
+            progress_call(data)
+            
     try:
         qlapi = await get_ql_api(qinglong_data)
         send_api = SendApi("ql")

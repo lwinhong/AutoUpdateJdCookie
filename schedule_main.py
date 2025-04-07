@@ -1,6 +1,7 @@
 import asyncio
-import threading,time
-from flask import Flask,render_template, Response
+import threading, time
+from queue import Queue
+from flask import Flask, render_template, Response
 
 from datetime import datetime, timedelta
 from croniter import croniter
@@ -33,7 +34,9 @@ async def run_scheduled_tasks(cron_expression):
                     get_next_runtime(ce, now + timedelta(seconds=1))
                     for ce in cron_expression
                 ]
-                next_run_time = next((x for x in sorted(set(next_run)) if x > datetime.now()), None)
+                next_run_time = next(
+                    (x for x in sorted(set(next_run)) if x > datetime.now()), None
+                )
                 logger.info(f"下次更新任务时间为{next_run_time}")
         # if now >= next_run :
         #     await main(mode="cron")
@@ -44,37 +47,58 @@ async def run_scheduled_tasks(cron_expression):
 
 def run_flask_main():
     def run():
-        
+
         app = Flask(__name__)
 
-        @app.route('/')
+        @app.route("/")
         def index():
-            return render_template('index.html')
-        
-        @app.route('/auto', methods=['GET'])
+            return render_template("index.html")
+
+        @app.route("/auto", methods=["GET"])
         def auto_jd():
-           # 使用ssevent发送消息
+            # 使用ssevent发送消息
 
             def run_generator():
-            
-                # asyncio.run(main(mode="cron"))
-                # 模拟实时数据
-                for i in range(10):
-                    yield f"data: {i}\n\n"
-                    # 模拟延迟
-                    
-                    time.sleep(1)
+                q_progress = Queue()
+                def progress_call(msg):
+                    q_progress.put(msg)
+                
+                def run_login_main():
+                    asyncio.run(main(mode="cron", progress_call=progress_call))
+
+                thread=threading.Thread(target=run_login_main)
+                thread.daemon = True
+                thread.start()
+                while thread.is_alive() or q_progress.empty() == False:
+                    try:
+                        time.sleep(0.2)
+
+                        if q_progress.empty():
+                            continue
+
+                        result_str = q_progress.get()
+                        if result_str is None:
+                            continue
+
+                        result_str = f"data: {result_str}\n\n"
+                        # print(result_str)
+                        yield result_str
+                    except GeneratorExit:
+                        yield f"data: 客户端已断开连接\n\n"
+                        break
+
+                thread.join()
+    
                 yield "data: done\n\n"
 
-           
-            return Response(run_generator(), mimetype='text/event-stream')
-           
+            return Response(run_generator(), mimetype="text/event-stream")
 
-        app.run(host='0.0.0.0', port=4567)
-    
+        app.run(host="0.0.0.0", port=4567)
+
     thread = threading.Thread(target=run)
     thread.daemon = True
     thread.start()
+
 
 if __name__ == "__main__":
     asyncio.run(run_scheduled_tasks(cron_expression))

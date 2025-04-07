@@ -6,10 +6,8 @@
 
 <body>
     <button id="login">重新登陆</button>
-    <p id="result">1</p>
+    <ul id="result"></ul>
     <script>
-
-
         document.getElementById('login').addEventListener('click', function () {
 
             let resultEl = document.getElementById('result')
@@ -18,15 +16,14 @@
             //使用EventSource访问服务器端事件
             let source = new EventSource('/auto')
             source.onmessage = function (event) {
-                resultEl.innerHTML += "<p>" + event.data + "</p>"
-                if(event.data==='done'){
+                resultEl.innerHTML += "<li>" + event.data + "</li>";
+                if (event.data === 'done') {
                     source.close()
                 }
             };
- 
-            
+
             source.onerror = function (event) {
-                resultEl.innerHTML += '<p>EventSource failed</p>' ;
+                resultEl.innerHTML += '<li>EventSource failed</li>';
                 source.close()
             };
             // fetch('/auto')
