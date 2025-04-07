@@ -7,8 +7,6 @@ docker build -t kk/autojd:latest .
 
 ```bash
 docker run --name=kkautojd --restart=always -p 4567:4567 kk/autojd:latest 
-
-
 ```
 
 单次运行
